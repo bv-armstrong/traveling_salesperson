@@ -189,6 +189,12 @@ class TSPSolver:
     '''
 
     def fancy(self, time_allowance=60.0):
+        #
+        # v1 = self.fancy_v1(time_allowance)
+        # print("V1 time: " + str(v1['time']))
+        # print("V1 cost: " + str(v1['cost']))
+        # print("\n")
+
         results = {}
         cities = self._scenario.get_cities()
         num_cities = len(cities)
@@ -196,23 +202,39 @@ class TSPSolver:
         max_queue_size = 0
 
         start_time = time.time()
-
         bssf = self.greedy(time_allowance)['soln']
-        best_route = np.array(bssf.route)
+        bssf_route = np.array(bssf.route)
+        found_solution = True
+        while found_solution and time.time() - start_time < time_allowance:  # If no updates are made, break
+            found_solution = False
 
-        keep_running = True
-        while keep_running and time.time() - start_time < time_allowance:
-            keep_running = False
-            for k in range(num_cities, 0, -1):
-                for j in range(k-1, 0, -1):
-                    for i in range(j-1, 0, -1):
-                        new_route = np.concatenate((best_route[:i], best_route[j:k], best_route[i:j], best_route[k:]))
+            # Sort edges based on weight, descending
+            edges = sorted([(bssf.route[i].cost_to(bssf.route[(i + 1) % num_cities]), i) for i in range(num_cities)],
+                           reverse=True)
+
+            # This loop goes through the edges in route, longest to shortest
+            for edge1 in range(num_cities):
+
+                # This loop goes through remaining edges, shortest to longest
+                for edge2 in range(edge1+1, num_cities):
+
+                    # For the inner for loop, we will look at all remaining edges and pick the best one, if applicable
+                    best_route = None
+                    for edge3 in range(edge2+1, num_cities):
+                        # i, j, k are the positions that we need to cut the route, and need to be in that order
+                        i, j, k = sorted([edges[edge_i][1] for edge_i in [edge1, edge2, edge3]])
+                        # Cut and reassemble the route
+                        new_route = np.concatenate((bssf_route[:i], bssf_route[j:k], bssf_route[i:j], bssf_route[k:]))
                         sol = TSPSolution(new_route)
                         if sol.cost < bssf.cost:
                             best_route = new_route
                             bssf = sol
                             solutions_found += 1
-                            keep_running = True
+                            found_solution = True
+
+                    if best_route is not None:
+                        bssf_route = best_route
+                        solutions_found += 1
 
         end_time = time.time()
 
@@ -223,4 +245,35 @@ class TSPSolver:
         results['max'] = max_queue_size
         return results
 
+    def fancy_v1(self, time_allowance=60.0):
+        results = {}
+        cities = self._scenario.get_cities()
+        num_cities = len(cities)
+        solutions_found = 0
+        max_queue_size = 0
+
+        start_time = time.time()
+        bssf = self.greedy(time_allowance)['soln']
+        best_route = np.array(bssf.route)
+        keep_running = True
+        while keep_running and time.time() - start_time < time_allowance:
+            keep_running = False
+            for k in range(num_cities, 0, -1):
+                for j in range(k - 1, 0, -1):
+                    for i in range(j - 1, 0, -1):
+                        new_route = np.concatenate((best_route[:i], best_route[j:k], best_route[i:j], best_route[k:]))
+                        sol = TSPSolution(new_route)
+                        if sol.cost < bssf.cost:
+                            best_route = new_route
+                            bssf = sol
+                            solutions_found += 1
+                            keep_running = True
+        end_time = time.time()
+
+        results['cost'] = bssf.cost
+        results['time'] = end_time - start_time
+        results['count'] = solutions_found
+        results['soln'] = bssf
+        results['max'] = max_queue_size
+        return results
 
